@@ -442,7 +442,12 @@ public sealed partial class Mod : MelonMod
 
             try
             {
-                Thread.Sleep(30000);
+                if (self._names.Count == 0)
+                    Thread.Sleep(10000);
+                else if (self._names.Count >= cfg.EnoughChatters)
+                    Thread.Sleep(60000);
+                else
+                    Thread.Sleep(30000);
             }
             catch (ThreadInterruptedException)
             {
