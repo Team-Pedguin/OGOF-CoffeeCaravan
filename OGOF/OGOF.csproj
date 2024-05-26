@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net6.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+        <PackageId>OGOF</PackageId>
+        <RootNamespace>OGOF</RootNamespace>
+        <LangVersion>12</LangVersion>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Reference Include="$(MelonLoaderNet6)\*.dll"/>
+        <Reference Include="$(MelonLoaderIl2Cpp)\*.dll"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="ILRepack.MSBuild.Task" Version="2.0.13"/>
+        <PackageReference Include="Newtonsoft.Json" Version="13.0.3"/>
+        <PackageReference Include="System.Text.Encodings.Web" Version="8.0.0" />
+        <PackageReference Include="System.Text.Json" Version="8.0.3" />
+        <PackageReference Include="TwitchLib" Version="3.5.3"/>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Utilities\" />
+    </ItemGroup>
+
+
+    <Target Name="Deploy" AfterTargets="Build">
+        <ItemGroup>
+            <_MergeAssemblies Include="$(TargetDir)\TwitchLib.*.dll"/>
+            <_MergeAssemblies Include="$(TargetDir)\System.Text.Json.dll"/>
+            <_MergeAssemblies Include="$(TargetDir)\System.Text.Encodings.Web.dll"/>
+        </ItemGroup>
+
+        <ILRepack
+                InputAssemblies="@(_MergeAssemblies)"
+                OutputType="$(OutputType)"
+                WorkingDirectory="$(TargetDir)"
+                MainAssembly="$(TargetPath)"
+                OutputAssembly="$(TargetPath)"
+        />
+
+        <ItemGroup>
+            <_SourceFile Include="$(TargetDir)\$(AssemblyName)*"/>
+        </ItemGroup>
+
+        <Message Importance="high" Text="Copying to $(MelonLoaderMods)"/>
+        <MakeDir Directories="$(MelonLoaderMods)"/>
+        <Copy SourceFiles="@(_SourceFile)" DestinationFolder="$(MelonLoaderMods)"
+              UseHardlinksIfPossible="true"/>
+    </Target>
+</Project>

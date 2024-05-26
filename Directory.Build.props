@@ -1,0 +1,9 @@
+﻿<Project>
+    <PropertyGroup>
+        <GameDirectory>E:\SteamLibrary\steamapps\common\Coffee Caravan</GameDirectory>
+        <MelonLoader>$(GameDirectory)\MelonLoader</MelonLoader>
+        <MelonLoaderNet6>$(MelonLoader)\net6</MelonLoaderNet6>
+        <MelonLoaderIl2Cpp>$(MelonLoader)\Il2CppAssemblies</MelonLoaderIl2Cpp>
+        <MelonLoaderMods>$(GameDirectory)\Mods</MelonLoaderMods>
+    </PropertyGroup>
+</Project>

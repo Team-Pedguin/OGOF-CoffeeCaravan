@@ -1,0 +1,23 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OGOF", "OGOF\OGOF.csproj", "{43ECC60B-E2A2-4DC6-ADBA-D4820F76725B}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Config", "Config", "{03D35F5C-05DF-4D6C-B0B4-BA63E7D92F51}"
+	ProjectSection(SolutionItems) = preProject
+		.gitignore = .gitignore
+		Directory.Build.props = Directory.Build.props
+		global.json = global.json
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{43ECC60B-E2A2-4DC6-ADBA-D4820F76725B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{43ECC60B-E2A2-4DC6-ADBA-D4820F76725B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{43ECC60B-E2A2-4DC6-ADBA-D4820F76725B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{43ECC60B-E2A2-4DC6-ADBA-D4820F76725B}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
