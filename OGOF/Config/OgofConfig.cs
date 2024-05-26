@@ -35,4 +35,8 @@ public sealed class OgofConfig
 
     [JsonPropertyName("openTwitchAuthInBrowser")]
     public bool OpenTwitchAuthInBrowser { get; set; } = true;
+
+    [JsonPropertyName("nameSources")]
+    public string? NameSources { get; set; } = "chatters"; 
+    //= "subscribers*tier+chatted&follower";
 }

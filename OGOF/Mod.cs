@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using Il2CppBroccoliGames;
 using TwitchLib.Api;
 using TwitchLib.Api.Core.Enums;
+using TwitchLib.Api.Helix.Models.Chat.GetChatters;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using UnityEngine.UIElements;
@@ -40,9 +41,9 @@ public sealed partial class Mod : MelonMod
     private string? _twitchRefreshToken;
     private bool _twitchAuthorized;
 
-    private object _chattersLock = new();
+    private object _namesLock = new();
 
-    private Dictionary<string, (string? DisplayName, DateTime Queried)> _chatters
+    private Dictionary<string, (string? DisplayName, DateTime Queried)> _names
         = new(StringComparer.OrdinalIgnoreCase);
 
     private Timer _twitchTokenRefreshTimer;
@@ -327,7 +328,7 @@ public sealed partial class Mod : MelonMod
         var broadcaster = cfg.BroadcasterId ?? (self._currentTwitchUserId
             ??= self.GetCurrentTwitchUserId().GetAwaiter().GetResult());
         if (broadcaster is null) return;
-        
+
         var moderator = cfg.ModeratorId ?? broadcaster;
 
         do
@@ -335,31 +336,30 @@ public sealed partial class Mod : MelonMod
             async ValueTask AsyncWork()
             {
                 var twitch = self._twitchApi;
-                var chattersResp = await twitch.Helix.Chat.GetChattersAsync(broadcaster, moderator);
+                var (total, cursor, userLogins)
+                    = await GetUserLogins(cfg, twitch, broadcaster, moderator);
                 var pageCount = 1;
-                var cursor = chattersResp.Pagination.Cursor;
-                var chatters = chattersResp.Data;
 
                 void SyncWork()
                 {
-                    lock (self._chattersLock)
+                    lock (self._namesLock)
                     {
                         // update last seen for chatters
-                        foreach (var chatter in chatters)
+                        foreach (var userLogin in userLogins)
                         {
                             // convert to sentence case
                             ref var lastSeen =
                                 ref CollectionsMarshal.GetValueRefOrAddDefault
-                                    (self._chatters, chatter.UserLogin, out _);
+                                    (self._names, userLogin, out _);
                             lastSeen = (null, DateTime.Now);
                         }
 
                         // remove old chatters
-                        var toRemove = new string[Math.Min(self._chatters.Count, 32)];
+                        var toRemove = new string[Math.Min(self._names.Count, 32)];
                         {
                             rescan:
                             var toRemoveCount = 0;
-                            foreach (var chatter in self._chatters)
+                            foreach (var chatter in self._names)
                             {
                                 var queried = chatter.Value.Queried;
                                 if (DateTime.Now - queried > TimeSpan.FromMinutes(30))
@@ -368,12 +368,12 @@ public sealed partial class Mod : MelonMod
                                     continue;
 
                                 for (var i = 0; i < toRemoveCount; i++)
-                                    self._chatters.Remove(toRemove[i]);
+                                    self._names.Remove(toRemove[i]);
                                 goto rescan;
                             }
 
                             for (var i = 0; i < toRemoveCount; i++)
-                                self._chatters.Remove(toRemove[i]);
+                                self._names.Remove(toRemove[i]);
                         }
                     }
                 }
@@ -382,24 +382,23 @@ public sealed partial class Mod : MelonMod
                 {
                     SyncWork();
 
-                    if (self._chatters.Count > cfg.EnoughChatters
-                        || pageCount * 100 > chattersResp.Total
+                    if (self._names.Count > cfg.EnoughChatters
+                        || pageCount * 100 > total
                         || string.IsNullOrEmpty(cursor))
                         break;
 
-                    chattersResp = await twitch.Helix.Chat.GetChattersAsync(broadcaster, moderator, after: cursor);
+                    (total, cursor, userLogins)
+                        = await GetUserLogins(cfg, twitch, broadcaster, moderator, after: cursor);
                     pageCount++;
-                    cursor = chattersResp.Pagination.Cursor;
-                    chatters = chattersResp.Data;
                 }
 
                 // update up to 100 display names at a time
                 var logins = new List<string>(100);
                 for (;;)
                 {
-                    lock (self._chattersLock)
+                    lock (self._namesLock)
                     {
-                        foreach (var (name, (displayName, queried)) in self._chatters)
+                        foreach (var (name, (displayName, queried)) in self._names)
                         {
                             if (displayName is not null) continue;
                             logins.Add(name);
@@ -410,11 +409,11 @@ public sealed partial class Mod : MelonMod
 
                     var resp = await twitch.Helix.Users.GetUsersAsync(null, logins);
 
-                    lock (self._chattersLock)
+                    lock (self._namesLock)
                     {
                         void UpdateChatter(string login, string displayName)
                         {
-                            ref var v = ref CollectionsMarshal.GetValueRefOrNullRef(self._chatters, login);
+                            ref var v = ref CollectionsMarshal.GetValueRefOrNullRef(self._names, login);
                             if (Unsafe.IsNullRef(ref v)) return;
                             foreach (var txf in self._config.DisplayNameTransforms)
                             {
@@ -450,6 +449,22 @@ public sealed partial class Mod : MelonMod
                 break;
             }
         } while (!self._lifetime.IsCancellationRequested);
+    }
+
+    private static async Task<(int total, string cursor, IEnumerable<string> userLogins)>
+        GetUserLogins(OgofConfig config, TwitchAPI twitchAPI, string broadcaster, string moderator,
+            string? after = null)
+    {
+        int total;
+        string cursor;
+        IEnumerable<string> userLogins;
+        {
+            var chattersResp = await twitchAPI.Helix.Chat.GetChattersAsync(broadcaster, moderator, after: after);
+            total = chattersResp.Total;
+            cursor = chattersResp.Pagination.Cursor;
+            userLogins = chattersResp.Data.Select(x => x.UserLogin);
+        }
+        return (total, cursor, userLogins);
     }
 
     private Rect _twitchAuthPromptRect;
@@ -494,7 +509,7 @@ public sealed partial class Mod : MelonMod
 
         int chattersCount;
 
-        lock (_chatters) chattersCount = _chatters.Count;
+        lock (_names) chattersCount = _names.Count;
 
         if (chattersCount <= 0) return;
 
@@ -514,11 +529,11 @@ public sealed partial class Mod : MelonMod
                 md = go.AddComponent<MetadataComponent>();
                 var id = customer.gameObject.GetInstanceID();
 
-                lock (_chatters)
+                lock (_names)
                 {
-                    var keys = _chatters.Keys;
+                    var keys = _names.Keys;
                     name = keys.ElementAt(id % keys.Count);
-                    displayName = _chatters.GetValueOrDefault(name).DisplayName;
+                    displayName = _names.GetValueOrDefault(name).DisplayName;
                 }
 
                 styleIndex = Math.Abs(name.GetHashCode()) % _guiStyles.Length;
@@ -538,9 +553,9 @@ public sealed partial class Mod : MelonMod
                 if (displayName is null)
                 {
                     // check for updated display name
-                    lock (_chatters)
+                    lock (_names)
                     {
-                        displayName = _chatters.GetValueOrDefault(name).DisplayName;
+                        displayName = _names.GetValueOrDefault(name).DisplayName;
                         if (displayName is not null)
                             md["displayName"] = displayName;
                     }
@@ -637,8 +652,8 @@ public sealed partial class Mod : MelonMod
             };
             s.normal.textColor = outlineColor;
 
-            // 0.5 (/2 for avg) * 0.0025 = 0.00125
-            var diagOffset = Math.Max(2f, (cam.pixelWidth + cam.pixelHeight) * 0.00125f);
+            // 0.5 (/2 for avg) * 0.00125 = 0.000625
+            var diagOffset = Math.Max(2f, (cam.pixelWidth + cam.pixelHeight) * 0.000625f);
             var offset = new Vector2(diagOffset, diagOffset);
 
             GUI.Label(new(r.x, r.y - offset.y, r.width, r.height), text, s);
